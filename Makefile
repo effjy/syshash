@@ -1,9 +1,9 @@
 # ============================================================
-# Syshash v2.0.1 — Makefile
+# Syshash v2.1.0 — Makefile
 # ============================================================
 
 BINARY     := syshash
-VERSION    := 2.0.1
+VERSION    := 2.1.0
 PREFIX     ?= /usr/local
 BINDIR     := $(PREFIX)/bin
 

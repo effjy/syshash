@@ -1,6 +1,6 @@
 # Syshash
 
-![Version](https://img.shields.io/badge/version-2.0.1-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-2.1.0-blue?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C11-00599C?style=flat-square&logo=c)
 ![Hash](https://img.shields.io/badge/hash-SHA3--512-blueviolet?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
@@ -9,7 +9,7 @@
 ![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square&logo=github-actions)
 
 **Syshash** is a lightweight, interactive file integrity monitor written in pure C.  
-It recursively hashes every file in a directory using **SHA3-512** (Keccak-f[1600], implemented from scratch — no OpenSSL, no external libraries) and stores the results in a local database. On subsequent runs it detects any file whose content has changed and lets you decide, file by file, whether to accept or reject the change.
+It recursively hashes every file in a directory using **SHA3-512** (Keccak-f[1600], implemented from scratch — no OpenSSL, no external libraries) and stores the results in a local database. On subsequent runs it detects any file whose content has changed and lets you decide — all at once or file by file — whether to accept or reject the change.
 
 Built to help catch tampering.
 
@@ -21,7 +21,7 @@ Built to help catch tampering.
 - Recursively scans the current directory and all subdirectories
 - Stores hashes in a human-readable `.syshash.db` flat-file database
 - Detects **content changes** only — deletions are intentionally ignored
-- **Per-file interactive review** on verification — accept legitimate changes, flag suspicious ones
+- **Batch action menu** on verification — list all changes, accept all at once, review one by one, or skip all
 - Selective partial updates — rejecting one file never blocks accepting others
 - Real-time progress bar with file counts
 - Colourful, clean ANSI terminal interface
@@ -157,7 +157,25 @@ The interactive menu will guide you through the rest.
   [ MOD  ]  Modified  : 1
   [ NEW  ]  New files : 1
 
-  Changes detected! Reviewing each one…
+  2 changes detected.
+
+  What would you like to do?
+
+  l  →  List all changes
+  r  →  Review one by one
+  a  →  Accept all changes
+  s  →  Skip all (leave database unchanged)
+
+  Action [lras]: l
+
+  ──────────────────────────────────────────────────
+  [ MOD ]  src/main.c
+  [ NEW ]  secrets.txt
+  ──────────────────────────────────────────────────
+
+  Action [lras]: r
+
+  Reviewing each change…
 
   ──────────────────────────────────────────────────
   [ MOD ] MODIFIED FILE
@@ -180,6 +198,8 @@ The interactive menu will guide you through the rest.
 
   [  OK  ] Database updated successfully.
 ```
+
+**To accept all changes immediately**, press `a` at the action menu instead of `r`. This is useful when hundreds or thousands of new or modified files are expected (e.g., after a large deployment) and you have already reviewed the list with `l`.
 
 ---
 
@@ -213,9 +233,11 @@ The interactive menu will guide you through the rest.
  │    ├─ Hash differs         →  [ MOD ] flag          │
  │    └─ Not in database      →  [ NEW ] flag          │
  │                                                     │
- │  For each flagged file, ask the user:               │
- │    y → update database entry                        │
- │    n → leave database unchanged (file stays flagged)│
+ │  Batch action menu:                                 │
+ │    l → list all flagged files, then re-prompt       │
+ │    r → review each file individually (y/n per file) │
+ │    a → accept all changes at once                   │
+ │    s → skip all (leave database unchanged)          │
  │                                                     │
  │  Deletions are silently ignored.                    │
  └─────────────────────────────────────────────────────┘
