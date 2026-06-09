@@ -176,45 +176,91 @@ static void cmd_verify(void)
         return;
     }
 
-    /* ---- Interactive review of each changed file ---- */
+    /* ---- Batch action menu ---- */
     int any_updated = 0;
 
-    printf("  " COL_BOLD COL_YELLOW "Changes detected! Reviewing each one…\n\n" COL_RESET);
+    printf("  " COL_BOLD COL_YELLOW "%zu change%s detected.\n\n" COL_RESET,
+           n_changes, n_changes == 1 ? "" : "s");
 
     size_t i;
-    for (i = 0; i < n_changes; i++) {
-        scan_result *cr = changes[i].r;
-        int is_new      = changes[i].is_new;
-
-        printf("  " COL_DIM "──────────────────────────────────────────────────\n" COL_RESET);
-        if (is_new) {
-            printf("  " SYM_NEW " " COL_CYAN COL_BOLD "NEW FILE\n" COL_RESET);
-        } else {
-            printf("  " SYM_MOD " " COL_YELLOW COL_BOLD "MODIFIED FILE\n" COL_RESET);
-        }
-        printf("  " COL_BOLD "  Path   : " COL_RESET "%s\n", cr->path);
-        if (!is_new) {
-            db_entry *e = db_find(db, cr->path);
-            printf("  " COL_BOLD "  Old    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, e->hex);
-            printf("  " COL_BOLD "  New    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, cr->hex);
-        } else {
-            printf("  " COL_BOLD "  Hash   : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, cr->hex);
-        }
+    char action;
+    for (;;) {
+        printf("  " COL_BOLD "What would you like to do?\n\n" COL_RESET);
+        printf("  " COL_CYAN "l" COL_RESET "  →  List all changes\n");
+        printf("  " COL_CYAN "r" COL_RESET "  →  Review one by one\n");
+        printf("  " COL_CYAN "a" COL_RESET "  →  Accept all changes\n");
+        printf("  " COL_CYAN "s" COL_RESET "  →  Skip all (leave database unchanged)\n");
+        printf("\n");
+        action = ui_ask_choice("Action", "lras");
         printf("\n");
 
-        int ok = ui_ask_yn(is_new
-            ? "Accept this new file into the database?"
-            : "Accept this change as legitimate? (update database)");
+        if (action != 'l') break;
 
-        if (ok) {
-            db_upsert(db, cr->path, cr->hex);
-            any_updated = 1;
-            printf("  " SYM_OK " Accepted.\n\n");
-        } else {
-            printf("  " SYM_WARN " " COL_RED "Rejected — database NOT updated for this file.\n\n" COL_RESET);
+        /* ---- List view ---- */
+        printf("  " COL_DIM "──────────────────────────────────────────────────\n" COL_RESET);
+        for (i = 0; i < n_changes; i++) {
+            if (changes[i].is_new)
+                printf("  " SYM_NEW "  %s\n", changes[i].r->path);
+            else
+                printf("  " SYM_MOD "  %s\n", changes[i].r->path);
         }
+        printf("  " COL_DIM "──────────────────────────────────────────────────\n\n" COL_RESET);
     }
-    printf("  " COL_DIM "──────────────────────────────────────────────────\n\n" COL_RESET);
+
+    if (action == 's') {
+        printf("  " SYM_INFO " Skipped — database left untouched.\n\n");
+        free(changes);
+        scan_free(s);
+        db_free(db);
+        return;
+    }
+
+    if (action == 'a') {
+        /* Accept all without per-file prompts */
+        for (i = 0; i < n_changes; i++) {
+            db_upsert(db, changes[i].r->path, changes[i].r->hex);
+        }
+        any_updated = 1;
+        printf("  " SYM_OK " All %zu change%s accepted.\n\n",
+               n_changes, n_changes == 1 ? "" : "s");
+    } else {
+        /* Per-file review */
+        printf("  " COL_BOLD COL_YELLOW "Reviewing each change…\n\n" COL_RESET);
+
+        for (i = 0; i < n_changes; i++) {
+            scan_result *cr = changes[i].r;
+            int is_new      = changes[i].is_new;
+
+            printf("  " COL_DIM "──────────────────────────────────────────────────\n" COL_RESET);
+            if (is_new) {
+                printf("  " SYM_NEW " " COL_CYAN COL_BOLD "NEW FILE\n" COL_RESET);
+            } else {
+                printf("  " SYM_MOD " " COL_YELLOW COL_BOLD "MODIFIED FILE\n" COL_RESET);
+            }
+            printf("  " COL_BOLD "  Path   : " COL_RESET "%s\n", cr->path);
+            if (!is_new) {
+                db_entry *e = db_find(db, cr->path);
+                printf("  " COL_BOLD "  Old    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, e->hex);
+                printf("  " COL_BOLD "  New    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, cr->hex);
+            } else {
+                printf("  " COL_BOLD "  Hash   : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, cr->hex);
+            }
+            printf("\n");
+
+            int ok = ui_ask_yn(is_new
+                ? "Accept this new file into the database?"
+                : "Accept this change as legitimate? (update database)");
+
+            if (ok) {
+                db_upsert(db, cr->path, cr->hex);
+                any_updated = 1;
+                printf("  " SYM_OK " Accepted.\n\n");
+            } else {
+                printf("  " SYM_WARN " " COL_RED "Rejected — database NOT updated for this file.\n\n" COL_RESET);
+            }
+        }
+        printf("  " COL_DIM "──────────────────────────────────────────────────\n\n" COL_RESET);
+    }
 
     if (any_updated) {
         /* Update timestamp */

@@ -3,7 +3,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#define VERSION "2.0.1"
 #define BAR_WIDTH 40
 
 void ui_clear_screen(void)
