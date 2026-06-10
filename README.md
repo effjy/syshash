@@ -44,7 +44,7 @@ Built to help catch tampering.
 ## Installation
 
 ```bash
-git clone https://github.com/yourname/syshash.git
+git clone https://github.com/effjy/syshash.git
 cd syshash
 make
 sudo make install      # installs to /usr/local/bin/syshash
