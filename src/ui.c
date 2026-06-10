@@ -84,6 +84,10 @@ void ui_progress(size_t current, size_t total, const char *label)
 {
     if (total == 0) return;
 
+    /* Files can appear between the pre-count and the hashing pass, so clamp
+     * to avoid drawing a bar wider than BAR_WIDTH. */
+    if (current > total) current = total;
+
     int filled = (int)((double)current / (double)total * BAR_WIDTH);
     int empty  = BAR_WIDTH - filled;
 

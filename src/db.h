@@ -2,6 +2,7 @@
 #define DB_H
 
 #include "sha3.h"
+#include <stdio.h>
 #include <time.h>
 #include <stddef.h>
 
@@ -31,6 +32,26 @@ typedef struct {
 
 db_t   *db_new(void);
 void    db_free(db_t *db);
+
+/* --------------------------------------------------------------------------
+ * Streaming writer — write entries straight to disk as they are produced,
+ * without buffering the whole database in memory. Used when creating a fresh
+ * database over a large tree.
+ * -------------------------------------------------------------------------- */
+typedef struct {
+    FILE  *fp;
+    size_t count;
+} db_writer;
+
+/* Open DB_FILENAME for writing and emit the header. Returns NULL on failure. */
+db_writer *db_writer_open(void);
+
+/* Append one entry. Returns 0 on success, -1 on write error. */
+int        db_writer_add(db_writer *w, const char *path, const char hex[DB_HEX_LEN + 1]);
+
+/* Flush, fsync-check and close. Returns 0 on success, -1 on any write error.
+ * Frees the writer regardless. */
+int        db_writer_close(db_writer *w);
 
 /* Load from DB_FILENAME in cwd; returns NULL if file absent (not an error) */
 db_t   *db_load(void);

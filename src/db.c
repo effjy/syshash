@@ -139,6 +139,52 @@ int db_save(const db_t *db)
     return 0;
 }
 
+/* --------------------------------------------------------------------------
+ * Streaming writer
+ * -------------------------------------------------------------------------- */
+
+db_writer *db_writer_open(void)
+{
+    db_writer *w = calloc(1, sizeof(db_writer));
+    if (!w) return NULL;
+
+    w->fp = fopen(DB_FILENAME, "w");
+    if (!w->fp) { free(w); return NULL; }
+
+    char now[64];
+    iso8601_now(now, sizeof(now));
+
+    fprintf(w->fp, "# syshash v%s\n", DB_VERSION);
+    fprintf(w->fp, "# created: %s\n", now);
+    fprintf(w->fp, "# updated: %s\n", now);
+    fprintf(w->fp, "#\n");
+    fprintf(w->fp, "# Format: sha3-512-hex|relative-path\n");
+    fprintf(w->fp, "# DO NOT EDIT MANUALLY\n");
+    fprintf(w->fp, "#\n");
+
+    return w;
+}
+
+int db_writer_add(db_writer *w, const char *path, const char hex[DB_HEX_LEN + 1])
+{
+    if (fprintf(w->fp, "%s|%s\n", hex, path) < 0)
+        return -1;
+    w->count++;
+    return 0;
+}
+
+int db_writer_close(db_writer *w)
+{
+    if (!w) return -1;
+    int rc = 0;
+    /* Detect write errors (e.g. disk full) before claiming success — a
+     * silently truncated integrity database would be worse than none. */
+    if (ferror(w->fp)) rc = -1;
+    if (fclose(w->fp) != 0) rc = -1;
+    free(w);
+    return rc;
+}
+
 db_entry *db_find(const db_t *db, const char *path)
 {
     db_entry *e = db->head;

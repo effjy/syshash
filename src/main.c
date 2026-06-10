@@ -22,6 +22,28 @@ static void wait_enter(void)
  * Option 1 – Create / Rebuild database
  * -------------------------------------------------------------------------- */
 
+/* Context threaded through the streaming scan so each hashed file updates the
+ * progress bar and is written straight to disk. */
+typedef struct {
+    db_writer *w;
+    size_t     total;   /* from the fast pre-count, for the bar denominator */
+    size_t     done;    /* files written so far */
+    int        write_failed;
+} create_ctx;
+
+static int create_on_file(const char *path, const char hex[DB_HEX_LEN + 1], void *vctx)
+{
+    create_ctx *c = (create_ctx *)vctx;
+
+    if (db_writer_add(c->w, path, hex) != 0) {
+        c->write_failed = 1;
+        return -1;   /* abort the scan; disk write failed (e.g. full) */
+    }
+    c->done++;
+    ui_progress(c->done, c->total, path);
+    return 0;
+}
+
 static void cmd_create(void)
 {
     ui_clear_screen();
@@ -30,54 +52,52 @@ static void cmd_create(void)
     printf("  " COL_DIM "Scanning current directory recursively with SHA3-512.\n" COL_RESET);
     printf("\n");
 
-    scan_t *s = scan_directory();
-    if (!s) {
-        fprintf(stderr, "  " SYM_FAIL " Memory allocation failed.\n");
+    /* Pass 1 — fast count (readdir only, no hashing) so the progress bar has
+     * an accurate total before the slow hashing begins. */
+    printf("  " SYM_INFO " Counting files… ");
+    fflush(stdout);
+    size_t total = scan_count_files();
+    printf(COL_BOLD "%zu" COL_RESET " found.\n\n", total);
+
+    if (total == 0) {
+        printf("  " SYM_WARN " No files found to hash.\n\n");
         return;
     }
 
-    if (s->count == 0) {
-        printf("  " SYM_WARN " No files found to hash.\n");
-        scan_free(s);
+    /* Open the database and stream entries to it as they are hashed, so memory
+     * use stays flat regardless of how many files there are. */
+    db_writer *w = db_writer_open();
+    if (!w) {
+        fprintf(stderr, "  " SYM_FAIL " Failed to open " DB_FILENAME " for writing.\n\n");
         return;
     }
 
-    db_t *db = db_new();
-    if (!db) {
-        fprintf(stderr, "  " SYM_FAIL " Memory allocation failed.\n");
-        scan_free(s);
+    /* Pass 2 — hash every file, updating the bar in real time. */
+    create_ctx ctx = { w, total, 0, 0 };
+    size_t hashed = 0, errors = 0;
+    scan_stream(create_on_file, &ctx, &hashed, &errors);
+
+    if (ctx.write_failed) {
+        db_writer_close(w);
+        fprintf(stderr, "\n  " SYM_FAIL " Write error while saving " DB_FILENAME
+                        " (disk full?). Database is incomplete.\n\n");
         return;
     }
 
-    size_t done = 0;
-    scan_result *r = s->head;
-    while (r) {
-        db_upsert(db, r->path, r->hex);
-        done++;
-        ui_progress(done, s->count, r->path);
-        r = r->next;
+    if (db_writer_close(w) != 0) {
+        fprintf(stderr, "\n  " SYM_FAIL " Failed to finalize " DB_FILENAME ".\n\n");
+        return;
     }
 
-    /* Timestamp update */
-    time_t t = time(NULL);
-    struct tm *tm = gmtime(&t);
-    strftime(db->updated, sizeof(db->updated), "%Y-%m-%dT%H:%M:%SZ", tm);
+    printf("\n");
+    printf("  " SYM_OK " Database created: " COL_BOLD "%zu file%s" COL_RESET " hashed.\n",
+           ctx.done, ctx.done == 1 ? "" : "s");
+    printf("  " COL_DIM "  Saved to " DB_FILENAME " in the current directory.\n" COL_RESET);
 
-    if (db_save(db) != 0) {
-        fprintf(stderr, "\n  " SYM_FAIL " Failed to write " DB_FILENAME ".\n");
-    } else {
-        printf("\n");
-        printf("  " SYM_OK " Database created: " COL_BOLD "%zu file%s" COL_RESET " hashed.\n",
-               s->count, s->count == 1 ? "" : "s");
-        printf("  " COL_DIM "  Saved to " DB_FILENAME " in the current directory.\n" COL_RESET);
-    }
-
-    if (s->errors > 0)
+    if (errors > 0)
         printf("  " SYM_WARN " " COL_YELLOW "%zu file(s) could not be read and were skipped.\n" COL_RESET,
-               s->errors);
+               errors);
 
-    db_free(db);
-    scan_free(s);
     printf("\n");
 }
 
