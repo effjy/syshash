@@ -21,6 +21,7 @@
 #define SYM_FAIL    COL_RED    "[ FAIL ]" COL_RESET
 #define SYM_NEW     COL_CYAN   "[ NEW  ]" COL_RESET
 #define SYM_MOD     COL_YELLOW "[ MOD  ]" COL_RESET
+#define SYM_DEL     COL_RED    "[ MISS ]" COL_RESET
 #define SYM_INFO    COL_BLUE   "[ INFO ]" COL_RESET
 
 void ui_clear_screen(void);

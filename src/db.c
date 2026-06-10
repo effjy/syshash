@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <time.h>
 
 /* Silence truncation: we always NUL-terminate via snprintf */
@@ -12,13 +13,15 @@
 /* --------------------------------------------------------------------------
  * Database file format (plain text, pipe-delimited):
  *
- *   # syshash v2.0.1
+ *   # syshash v<version>
  *   # created: <ISO8601>
  *   # updated: <ISO8601>
  *   <hex>|<path>
  *   ...
  *
- * Paths may not contain '|' or newlines (POSIX portable filenames are safe).
+ * The hex field is a fixed 128 lowercase hex chars, so the first '|' on a
+ * line is always the separator — paths containing '|' round-trip correctly.
+ * Paths may NOT contain a newline (scan.c skips such files).
  * -------------------------------------------------------------------------- */
 
 static void iso8601_now(char *buf, size_t len)
@@ -90,6 +93,16 @@ db_t *db_load(void)
 
         if (strlen(hex) != DB_HEX_LEN) continue;
 
+        /* Validate hex digits; reject malformed lines */
+        size_t hi;
+        for (hi = 0; hi < DB_HEX_LEN; hi++)
+            if (!isxdigit((unsigned char)hex[hi])) break;
+        if (hi != DB_HEX_LEN) continue;
+
+        /* A path can never legitimately contain a newline (lines are
+         * newline-delimited), and an empty path is meaningless. */
+        if (path[0] == '\0') continue;
+
         db_upsert(db, path, hex);
     }
     fclose(fp);
@@ -114,7 +127,15 @@ int db_save(const db_t *db)
         fprintf(fp, "%s|%s\n", e->hex, e->path);
         e = e->next;
     }
-    fclose(fp);
+
+    /* Detect write errors (e.g. disk full) before claiming success — a
+     * silently truncated integrity database would be worse than none. */
+    if (ferror(fp)) {
+        fclose(fp);
+        return -1;
+    }
+    if (fclose(fp) != 0)
+        return -1;
     return 0;
 }
 
@@ -142,28 +163,30 @@ void db_upsert(db_t *db, const char *path, const char hex[DB_HEX_LEN + 1])
     strncpy(e->hex,  hex,  DB_HEX_LEN);
     e->hex[DB_HEX_LEN] = '\0';
 
-    /* Append to list */
+    /* Append to list (O(1) via tail pointer) */
     if (!db->head) {
         db->head = e;
+        db->tail = e;
     } else {
-        db_entry *tail = db->head;
-        while (tail->next) tail = tail->next;
-        tail->next = e;
+        db->tail->next = e;
+        db->tail = e;
     }
     db->count++;
 }
 
 void db_remove(db_t *db, const char *path)
 {
-    db_entry **pp = &db->head;
-    while (*pp) {
-        if (strcmp((*pp)->path, path) == 0) {
-            db_entry *del = *pp;
-            *pp = del->next;
-            free(del);
+    db_entry *prev = NULL, *e = db->head;
+    while (e) {
+        if (strcmp(e->path, path) == 0) {
+            if (prev) prev->next = e->next;
+            else      db->head   = e->next;
+            if (db->tail == e) db->tail = prev;
+            free(e);
             db->count--;
             return;
         }
-        pp = &(*pp)->next;
+        prev = e;
+        e = e->next;
     }
 }

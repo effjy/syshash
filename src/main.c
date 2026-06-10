@@ -121,12 +121,18 @@ static void cmd_verify(void)
     printf("\n");
 
     /* ---- Second pass: compare ---- */
-    size_t n_ok  = 0;
-    size_t n_mod = 0;
-    size_t n_new = 0;
+    enum { CHG_NEW, CHG_MOD, CHG_MISSING };
 
-    /* Collect changed files into a temporary array for pretty reporting */
-    typedef struct chg { scan_result *r; int is_new; } chg;
+    size_t n_ok      = 0;
+    size_t n_mod     = 0;
+    size_t n_new     = 0;
+    size_t n_missing = 0;
+
+    /* Collect changed files into a temporary array for pretty reporting.
+     *   r  : scan result (NULL for missing files)
+     *   e  : matching db entry (NULL for new files)
+     *   type: CHG_NEW / CHG_MOD / CHG_MISSING */
+    typedef struct chg { scan_result *r; db_entry *e; int type; } chg;
     chg *changes = NULL;
     size_t n_changes = 0;
     size_t cap_changes = 0;
@@ -134,31 +140,53 @@ static void cmd_verify(void)
     r = s->head;
     while (r) {
         db_entry *e = db_find(db, r->path);
+        if (e) e->seen = 1;   /* mark so we can find deleted files later */
 
+        int type;
         if (!e) {
-            /* New file not previously in database */
-            n_new++;
+            type = CHG_NEW;             /* file not previously in database */
         } else if (strcmp(e->hex, r->hex) != 0) {
-            /* Content changed */
-            n_mod++;
+            type = CHG_MOD;             /* content changed */
         } else {
             n_ok++;
             r = r->next;
             continue;
         }
 
-        /* Grow changes array */
+        /* Grow changes array; only count the change if we can record it,
+         * so the summary totals never drift from the list contents. */
         if (n_changes >= cap_changes) {
-            cap_changes = cap_changes ? cap_changes * 2 : 16;
-            chg *tmp = realloc(changes, cap_changes * sizeof(chg));
-            if (!tmp) { /* out of memory, skip */ r = r->next; continue; }
+            size_t new_cap = cap_changes ? cap_changes * 2 : 16;
+            chg *tmp = realloc(changes, new_cap * sizeof(chg));
+            if (!tmp) { r = r->next; continue; }  /* OOM: skip silently */
             changes = tmp;
+            cap_changes = new_cap;
         }
-        changes[n_changes].r      = r;
-        changes[n_changes].is_new = (db_find(db, r->path) == NULL);
+        changes[n_changes].r    = r;
+        changes[n_changes].e    = e;
+        changes[n_changes].type = type;
         n_changes++;
+        if (type == CHG_NEW) n_new++; else n_mod++;
 
         r = r->next;
+    }
+
+    /* ---- Detect missing files: db entries never seen on disk ---- */
+    for (db_entry *e = db->head; e; e = e->next) {
+        if (e->seen) continue;
+
+        if (n_changes >= cap_changes) {
+            size_t new_cap = cap_changes ? cap_changes * 2 : 16;
+            chg *tmp = realloc(changes, new_cap * sizeof(chg));
+            if (!tmp) continue;  /* OOM: skip silently */
+            changes = tmp;
+            cap_changes = new_cap;
+        }
+        changes[n_changes].r    = NULL;
+        changes[n_changes].e    = e;
+        changes[n_changes].type = CHG_MISSING;
+        n_changes++;
+        n_missing++;
     }
 
     /* ---- Report ---- */
@@ -166,7 +194,15 @@ static void cmd_verify(void)
     printf("  " SYM_OK "  Unchanged : " COL_GREEN COL_BOLD "%zu" COL_RESET "\n", n_ok);
     printf("  " SYM_MOD "  Modified  : " COL_YELLOW COL_BOLD "%zu" COL_RESET "\n", n_mod);
     printf("  " SYM_NEW "  New files : " COL_CYAN COL_BOLD "%zu" COL_RESET "\n", n_new);
+    printf("  " SYM_DEL "  Missing   : " COL_RED COL_BOLD "%zu" COL_RESET "\n", n_missing);
     printf("\n");
+
+    if (s->errors > 0) {
+        printf("  " SYM_WARN " " COL_YELLOW "%zu file(s) could not be read and were skipped;\n"
+               "          they may appear above as \"Missing\". Do not accept those\n"
+               "          removals unless the files are genuinely gone.\n" COL_RESET "\n",
+               s->errors);
+    }
 
     if (n_changes == 0) {
         printf("  " SYM_OK " " COL_GREEN COL_BOLD "All files intact. No tampering detected.\n" COL_RESET "\n");
@@ -199,10 +235,17 @@ static void cmd_verify(void)
         /* ---- List view ---- */
         printf("  " COL_DIM "──────────────────────────────────────────────────\n" COL_RESET);
         for (i = 0; i < n_changes; i++) {
-            if (changes[i].is_new)
+            switch (changes[i].type) {
+            case CHG_NEW:
                 printf("  " SYM_NEW "  %s\n", changes[i].r->path);
-            else
+                break;
+            case CHG_MOD:
                 printf("  " SYM_MOD "  %s\n", changes[i].r->path);
+                break;
+            case CHG_MISSING:
+                printf("  " SYM_DEL "  %s\n", changes[i].e->path);
+                break;
+            }
         }
         printf("  " COL_DIM "──────────────────────────────────────────────────\n\n" COL_RESET);
     }
@@ -218,7 +261,10 @@ static void cmd_verify(void)
     if (action == 'a') {
         /* Accept all without per-file prompts */
         for (i = 0; i < n_changes; i++) {
-            db_upsert(db, changes[i].r->path, changes[i].r->hex);
+            if (changes[i].type == CHG_MISSING)
+                db_remove(db, changes[i].e->path);
+            else
+                db_upsert(db, changes[i].r->path, changes[i].r->hex);
         }
         any_updated = 1;
         printf("  " SYM_OK " All %zu change%s accepted.\n\n",
@@ -229,30 +275,42 @@ static void cmd_verify(void)
 
         for (i = 0; i < n_changes; i++) {
             scan_result *cr = changes[i].r;
-            int is_new      = changes[i].is_new;
+            db_entry    *ce = changes[i].e;
+            int          type = changes[i].type;
+            const char  *path = (type == CHG_MISSING) ? ce->path : cr->path;
 
             printf("  " COL_DIM "──────────────────────────────────────────────────\n" COL_RESET);
-            if (is_new) {
+            if (type == CHG_NEW) {
                 printf("  " SYM_NEW " " COL_CYAN COL_BOLD "NEW FILE\n" COL_RESET);
-            } else {
+            } else if (type == CHG_MOD) {
                 printf("  " SYM_MOD " " COL_YELLOW COL_BOLD "MODIFIED FILE\n" COL_RESET);
-            }
-            printf("  " COL_BOLD "  Path   : " COL_RESET "%s\n", cr->path);
-            if (!is_new) {
-                db_entry *e = db_find(db, cr->path);
-                printf("  " COL_BOLD "  Old    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, e->hex);
-                printf("  " COL_BOLD "  New    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, cr->hex);
             } else {
+                printf("  " SYM_DEL " " COL_RED COL_BOLD "MISSING FILE\n" COL_RESET);
+            }
+            printf("  " COL_BOLD "  Path   : " COL_RESET "%s\n", path);
+            if (type == CHG_MOD) {
+                printf("  " COL_BOLD "  Old    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, ce->hex);
+                printf("  " COL_BOLD "  New    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, cr->hex);
+            } else if (type == CHG_NEW) {
                 printf("  " COL_BOLD "  Hash   : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, cr->hex);
+            } else {
+                printf("  " COL_BOLD "  Old    : " COL_RESET COL_DIM "%.64s…\n" COL_RESET, ce->hex);
+                printf("  " COL_DIM "  (file no longer present on disk)\n" COL_RESET);
             }
             printf("\n");
 
-            int ok = ui_ask_yn(is_new
-                ? "Accept this new file into the database?"
-                : "Accept this change as legitimate? (update database)");
+            const char *q;
+            if (type == CHG_NEW)      q = "Accept this new file into the database?";
+            else if (type == CHG_MOD) q = "Accept this change as legitimate? (update database)";
+            else                      q = "Remove this missing file from the database?";
+
+            int ok = ui_ask_yn(q);
 
             if (ok) {
-                db_upsert(db, cr->path, cr->hex);
+                if (type == CHG_MISSING)
+                    db_remove(db, ce->path);
+                else
+                    db_upsert(db, cr->path, cr->hex);
                 any_updated = 1;
                 printf("  " SYM_OK " Accepted.\n\n");
             } else {
@@ -298,6 +356,12 @@ int main(void)
         fflush(stdout);
 
         if (!fgets(buf, sizeof(buf), stdin)) break;
+        /* Drain any leftover characters if the line exceeded the buffer. */
+        if (!strchr(buf, '\n')) {
+            int ch;
+            while ((ch = getchar()) != '\n' && ch != EOF)
+                ;
+        }
         char c = buf[0];
 
         if (c == '1') {

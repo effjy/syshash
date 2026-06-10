@@ -11,6 +11,7 @@ typedef struct scan_result {
 
 typedef struct {
     scan_result *head;
+    scan_result *tail;   /* keeps list append O(1) */
     size_t       count;
     size_t       errors;
 } scan_t;

@@ -6,13 +6,17 @@
 #include <stddef.h>
 
 #define DB_FILENAME    ".syshash.db"
-#define DB_VERSION     "2.0.1"
+#ifndef VERSION
+#define VERSION        "0.0.0"
+#endif
+#define DB_VERSION     VERSION
 #define DB_MAX_PATH    4096
 #define DB_HEX_LEN     (SHA3_512_DIGEST_SIZE * 2)
 
 typedef struct db_entry {
     char            path[DB_MAX_PATH];
     char            hex[DB_HEX_LEN + 1];
+    int             seen;   /* scratch flag used during verification */
     struct db_entry *next;
 } db_entry;
 
@@ -21,6 +25,7 @@ typedef struct {
     char      created[64];
     char      updated[64];
     db_entry *head;
+    db_entry *tail;   /* keeps db_upsert O(1) instead of O(n) */
     size_t    count;
 } db_t;
 

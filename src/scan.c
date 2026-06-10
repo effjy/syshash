@@ -49,12 +49,22 @@ static void walk(const char *base_prefix, const char *dir_path, scan_t *s)
             continue;
         }
 
+        /* Note: lstat() is used deliberately, so symbolic links are neither
+         * followed (avoids loops / escaping the tree) nor hashed. Only real
+         * directories and regular files are considered. */
         if (S_ISDIR(st.st_mode)) {
             walk(rel, full, s);
         } else if (S_ISREG(st.st_mode)) {
-            /* Skip the database file itself */
-            if (strcmp(de->d_name, DB_FILENAME) == 0 && base_prefix[0] == '\0')
+            /* Skip the database file itself, in any directory */
+            if (strcmp(de->d_name, DB_FILENAME) == 0)
                 continue;
+
+            /* A newline in a path would corrupt the line-based DB format. */
+            if (strchr(rel, '\n')) {
+                fprintf(stderr, "  warning: skipping path with newline: %s\n", full);
+                s->errors++;
+                continue;
+            }
 
             uint8_t digest[SHA3_512_DIGEST_SIZE];
             if (sha3_512_file(full, digest) != 0) {
@@ -69,13 +79,13 @@ static void walk(const char *base_prefix, const char *dir_path, scan_t *s)
             snprintf(r->path, DB_MAX_PATH, "%s", rel);
             sha3_512_hex(digest, r->hex);
 
-            /* Append to list */
+            /* Append to list (O(1) via tail pointer) */
             if (!s->head) {
                 s->head = r;
+                s->tail = r;
             } else {
-                scan_result *tail = s->head;
-                while (tail->next) tail = tail->next;
-                tail->next = r;
+                s->tail->next = r;
+                s->tail = r;
             }
             s->count++;
         }

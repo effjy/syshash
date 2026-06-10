@@ -5,6 +5,16 @@
 
 #define BAR_WIDTH 40
 
+/* If fgets didn't consume the whole line (input longer than the buffer),
+ * drain the rest so it doesn't leak into the next prompt. */
+static void drain_line(const char *buf)
+{
+    if (strchr(buf, '\n')) return;
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF)
+        ;
+}
+
 void ui_clear_screen(void)
 {
     printf("\033[2J\033[H");
@@ -48,6 +58,7 @@ int ui_ask_yn(const char *question)
         printf("  %s " COL_DIM "[y/n]" COL_RESET " ", question);
         fflush(stdout);
         if (!fgets(buf, sizeof(buf), stdin)) return 0;
+        drain_line(buf);
         char c = tolower((unsigned char)buf[0]);
         if (c == 'y') return 1;
         if (c == 'n') return 0;
@@ -62,6 +73,7 @@ char ui_ask_choice(const char *prompt, const char *choices)
         printf("  %s " COL_DIM "[%s]" COL_RESET ": ", prompt, choices);
         fflush(stdout);
         if (!fgets(buf, sizeof(buf), stdin)) continue;
+        drain_line(buf);
         char c = tolower((unsigned char)buf[0]);
         if (strchr(choices, c)) return c;
         printf("  " COL_YELLOW "Invalid choice. Options: %s\n" COL_RESET, choices);
@@ -83,6 +95,7 @@ void ui_progress(size_t current, size_t total, const char *label)
     for (i = 0; i < empty;  i++) printf("░");
     printf(COL_RESET COL_CYAN "]" COL_RESET);
     printf("  %zu / %zu  " COL_DIM "%s" COL_RESET, current, total, label);
+    printf("\033[K");   /* clear to end of line so shorter labels don't leave residue */
     fflush(stdout);
 
     if (current == total)
