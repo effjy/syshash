@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Syshash
+GenericName=File Integrity Monitor
+Comment=Verify file integrity with SHA3-512 hashing
+Exec=syshash-gui
+Icon=syshash
+Terminal=false
+StartupWMClass=syshash-gui
+Categories=Utility;Security;
+Keywords=integrity;hash;sha3;checksum;security;
+StartupNotify=true
