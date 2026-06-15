@@ -1,24 +1,48 @@
-# Syshash
+<h1 align="center">Syshash</h1>
 
-![Version](https://img.shields.io/badge/version-2.1.0-blue?style=flat-square)
-![Language](https://img.shields.io/badge/language-C11-00599C?style=flat-square&logo=c)
-![Hash](https://img.shields.io/badge/hash-SHA3--512-blueviolet?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey?style=flat-square)
-![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen?style=flat-square)
-![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square&logo=github-actions)
+<p align="center">
+  <em>A lightweight file integrity monitor in pure C — with a CLI and a GTK3 desktop app.</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-3.0.0-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/language-C11-00599C?style=flat-square&logo=c" alt="Language">
+  <img src="https://img.shields.io/badge/hash-SHA3--512-blueviolet?style=flat-square" alt="Hash">
+  <img src="https://img.shields.io/badge/GUI-GTK%203-4A86CF?style=flat-square&logo=gnome&logoColor=white" alt="GTK3">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/dependencies-none%20(core)-brightgreen?style=flat-square" alt="Dependencies">
+  <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square&logo=github-actions&logoColor=white" alt="Build">
+</p>
+
+<p align="center">
+  <img src="screenshot.png" alt="Syshash GTK3 desktop app verifying a directory" width="640">
+  <br>
+  <sub><em>The GTK3 app after verifying <code>/home/user/data</code> — 3041 files unchanged, no tampering detected.</em></sub>
+</p>
+
+---
 
 **Syshash** is a lightweight, interactive file integrity monitor written in pure C.  
 It recursively hashes every file in a directory using **SHA3-512** (Keccak-f[1600], implemented from scratch — no OpenSSL, no external libraries) and stores the results in a local database. On subsequent runs it detects any file whose content has changed and lets you decide — all at once or file by file — whether to accept or reject the change.
 
 Built to help catch tampering.
 
+Syshash ships in **two interchangeable front-ends** over the same integrity core:
+
+- **`syshash`** — the original interactive **command-line** tool. The database is created in the **current launch directory**.
+- **`syshash-gui`** — a **GTK3** desktop application with an icon and application-menu / taskbar entry. It defaults to the **user's home directory**, but you can also **open an existing database** anywhere or **create one in any other directory**.
+
+Both store the database as `.syshash.db` *inside the directory it protects*, so a database created by one front-end is fully readable by the other.
+
 ---
 
 ## Features
 
-- **SHA3-512** from scratch — zero runtime dependencies, single static binary
-- Recursively scans the current directory and all subdirectories
+- **Two front-ends** — an interactive **CLI** (`syshash`) and a **GTK3 desktop GUI** (`syshash-gui`) sharing one integrity core
+- **GTK3 GUI** with an installed icon and applications-menu / taskbar entry; defaults to your home directory, can open or create a database in any directory, with a threaded scan that keeps the window responsive
+- **SHA3-512** from scratch — zero runtime dependencies in the core
+- Recursively scans a chosen directory and all subdirectories
 - Stores hashes in a human-readable `.syshash.db` flat-file database
 - Detects **content changes** only — deletions are intentionally ignored
 - **Batch action menu** on verification — list all changes, accept all at once, review one by one, or skip all
@@ -46,15 +70,32 @@ Built to help catch tampering.
 ```bash
 git clone https://github.com/effjy/syshash.git
 cd syshash
-make
-sudo make install      # installs to /usr/local/bin/syshash
+make                   # builds both syshash (CLI) and syshash-gui (GTK3)
+sudo make install      # installs both binaries + icon + desktop entry globally
 ```
 
-To uninstall:
+`sudo make install` installs:
+
+| Item | Location |
+|------|----------|
+| CLI binary | `/usr/local/bin/syshash` |
+| GUI binary | `/usr/local/bin/syshash-gui` |
+| Icon (scalable) | `/usr/local/share/icons/hicolor/scalable/apps/syshash.svg` |
+| Desktop entry | `/usr/local/share/applications/syshash.desktop` |
+
+Because the icon is installed into the global `hicolor` theme and referenced by
+the desktop entry, **Syshash appears in your applications menu and shows its
+icon in the window list / taskbar.**
+
+To uninstall everything (binaries, icon, desktop entry):
 
 ```bash
 sudo make uninstall
 ```
+
+> **Build dependency:** the GUI requires GTK 3 development headers
+> (`gtk+-3.0`). On Debian/Ubuntu: `sudo apt install libgtk-3-dev`.
+> To build only the CLI (no GTK needed): `make cli`.
 
 To build without installing (run from the project directory):
 
@@ -69,6 +110,8 @@ make
 
 ## Usage
 
+### Command line (`syshash`)
+
 Navigate to any directory you want to monitor, then run:
 
 ```bash
@@ -76,7 +119,27 @@ cd /path/to/directory/you/want/to/monitor
 syshash
 ```
 
-The interactive menu will guide you through the rest.
+The interactive menu guides you through the rest. The database (`.syshash.db`)
+is created in the **current launch directory**. The menu also includes an
+**About** entry crediting the author.
+
+### Desktop GUI (`syshash-gui`)
+
+Launch **Syshash** from your applications menu (it has an icon and taskbar
+entry), or run `syshash-gui` from a terminal. The GUI offers:
+
+- **Create / Rebuild…** — pick *any* directory; its database is (re)built.
+  The folder chooser opens at your **home directory** by default.
+- **Open Database…** — select an existing `.syshash.db` anywhere; its
+  containing directory becomes the monitored root.
+- **Verify Integrity** — rescans and lists New / Modified / Missing files in a
+  table; tick the ones you accept and click **Accept selected changes** to
+  update the database.
+- **About** — an about dialog crediting the author.
+
+Hashing runs in a background thread, so the window stays responsive and shows a
+live progress bar. By default the GUI works against the **user's home
+directory**.
 
 ---
 
@@ -275,33 +338,48 @@ a8cd8b97d3166bf59d0f7501c28248bf9b13ac1a...64|subdir/deep/data.bin
 ```
 syshash/
 ├── Makefile
+├── data/
+│   ├── syshash.svg       — application icon (installed into hicolor theme)
+│   └── syshash.desktop   — desktop entry (applications menu / taskbar)
 └── src/
-    ├── main.c      — interactive menu, create and verify commands
+    ├── main.c      — CLI interactive menu, create and verify commands
+    ├── gui.c       — GTK3 desktop front-end (threaded scan, About dialog)
     ├── sha3.c/h    — SHA3-512 (Keccak-f[1600]) implemented from scratch
-    ├── db.c/h      — database load, save, lookup, upsert
+    ├── db.c/h      — database load/save/lookup/upsert (root-parameterized)
     ├── scan.c/h    — recursive directory walker (opendir / readdir / lstat)
-    └── ui.c/h      — ANSI colours, progress bar, y/n prompt helpers
+    └── ui.c/h      — ANSI colours, progress bar, prompts, About screen
 ```
+
+The `sha3`, `db` and `scan` units form a self-contained core with no terminal
+or GUI dependencies; `main.c` (CLI) and `gui.c` (GTK3) are thin front-ends over
+it. The core functions take a *root directory* (`*_at` variants), which is what
+lets the GUI protect any directory while the CLI defaults to the launch
+directory.
 
 ---
 
 ## Building from Source
 
 ```bash
-# Default build
+# Default build — both CLI and GUI
 make
 
+# Build only one front-end
+make cli        # command-line tool only (no GTK required)
+make gui        # GTK3 GUI only
+
 # Custom install prefix (default: /usr/local)
-make install PREFIX=/opt/local
+sudo make install PREFIX=/opt/local
 
 # Uninstall
-make uninstall PREFIX=/opt/local
+sudo make uninstall PREFIX=/opt/local
 
 # Clean build artifacts
 make clean
 ```
 
-The Makefile compiles with `-std=c11 -Wall -Wextra -Wpedantic` and produces zero warnings.
+The core and CLI compile with `-std=c11 -Wall -Wextra -Wpedantic` and produce
+zero warnings; the GUI links against `gtk+-3.0` via `pkg-config`.
 
 ---
 
