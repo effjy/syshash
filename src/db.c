@@ -24,6 +24,22 @@
  * Paths may NOT contain a newline (scan.c skips such files).
  * -------------------------------------------------------------------------- */
 
+int db_path_for(const char *root, char *out, size_t out_len)
+{
+    int n;
+    /* An empty root or "." means the current directory: use the bare filename
+     * so paths stay tidy and identical to the legacy cwd behaviour. */
+    if (!root || root[0] == '\0' || (root[0] == '.' && root[1] == '\0')) {
+        n = snprintf(out, out_len, "%s", DB_FILENAME);
+    } else {
+        size_t rl = strlen(root);
+        const char *sep = (rl > 0 && root[rl - 1] == '/') ? "" : "/";
+        n = snprintf(out, out_len, "%s%s%s", root, sep, DB_FILENAME);
+    }
+    if (n < 0 || (size_t)n >= out_len) return -1;
+    return 0;
+}
+
 static void iso8601_now(char *buf, size_t len)
 {
     time_t t = time(NULL);
@@ -55,7 +71,15 @@ void db_free(db_t *db)
 
 db_t *db_load(void)
 {
-    FILE *fp = fopen(DB_FILENAME, "r");
+    return db_load_at(".");
+}
+
+db_t *db_load_at(const char *root)
+{
+    char dbpath[DB_MAX_PATH];
+    if (db_path_for(root, dbpath, sizeof(dbpath)) != 0) return NULL;
+
+    FILE *fp = fopen(dbpath, "r");
     if (!fp) return NULL;
 
     db_t *db = db_new();
@@ -111,7 +135,15 @@ db_t *db_load(void)
 
 int db_save(const db_t *db)
 {
-    FILE *fp = fopen(DB_FILENAME, "w");
+    return db_save_at(".", db);
+}
+
+int db_save_at(const char *root, const db_t *db)
+{
+    char dbpath[DB_MAX_PATH];
+    if (db_path_for(root, dbpath, sizeof(dbpath)) != 0) return -1;
+
+    FILE *fp = fopen(dbpath, "w");
     if (!fp) return -1;
 
     fprintf(fp, "# syshash v%s\n", db->version);
@@ -145,10 +177,18 @@ int db_save(const db_t *db)
 
 db_writer *db_writer_open(void)
 {
+    return db_writer_open_at(".");
+}
+
+db_writer *db_writer_open_at(const char *root)
+{
+    char dbpath[DB_MAX_PATH];
+    if (db_path_for(root, dbpath, sizeof(dbpath)) != 0) return NULL;
+
     db_writer *w = calloc(1, sizeof(db_writer));
     if (!w) return NULL;
 
-    w->fp = fopen(DB_FILENAME, "w");
+    w->fp = fopen(dbpath, "w");
     if (!w->fp) { free(w); return NULL; }
 
     char now[64];

@@ -46,6 +46,10 @@ typedef struct {
 /* Open DB_FILENAME for writing and emit the header. Returns NULL on failure. */
 db_writer *db_writer_open(void);
 
+/* Like db_writer_open, but writes the database into <root>/DB_FILENAME instead
+ * of the current directory. Pass "." for cwd behaviour. */
+db_writer *db_writer_open_at(const char *root);
+
 /* Append one entry. Returns 0 on success, -1 on write error. */
 int        db_writer_add(db_writer *w, const char *path, const char hex[DB_HEX_LEN + 1]);
 
@@ -56,8 +60,19 @@ int        db_writer_close(db_writer *w);
 /* Load from DB_FILENAME in cwd; returns NULL if file absent (not an error) */
 db_t   *db_load(void);
 
+/* Load from <root>/DB_FILENAME; returns NULL if file absent (not an error). */
+db_t   *db_load_at(const char *root);
+
 /* Write db to DB_FILENAME in cwd; returns 0 on success */
 int     db_save(const db_t *db);
+
+/* Write db to <root>/DB_FILENAME; returns 0 on success. */
+int     db_save_at(const char *root, const db_t *db);
+
+/* Build the full path to the database file inside root, e.g.
+ * "<root>/.syshash.db". out must hold DB_MAX_PATH bytes. Returns 0 on
+ * success, -1 if the result would be truncated. */
+int     db_path_for(const char *root, char *out, size_t out_len);
 
 /* Lookup entry by path; returns pointer into list or NULL */
 db_entry *db_find(const db_t *db, const char *path);

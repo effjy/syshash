@@ -24,9 +24,14 @@
 #define SYM_DEL     COL_RED    "[ MISS ]" COL_RESET
 #define SYM_INFO    COL_BLUE   "[ INFO ]" COL_RESET
 
+#ifndef AUTHOR
+#define AUTHOR "Jean-Francois Lachance-Caumartin"
+#endif
+
 void ui_clear_screen(void);
 void ui_print_banner(void);
 void ui_print_menu(void);
+void ui_print_about(void);
 
 /* Ask a yes/no question; returns 1 for yes, 0 for no */
 int  ui_ask_yn(const char *question);

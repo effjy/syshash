@@ -26,15 +26,26 @@ typedef int (*scan_cb)(const char *rel_path,
  * Use it to get a total for a progress bar before the slow hashing pass. */
 size_t scan_count_files(void);
 
+/* As scan_count_files, but counts under an arbitrary root directory. */
+size_t scan_count_files_at(const char *root);
+
 /* Streaming scan: recursively hash every file (except DB_FILENAME) and invoke
  * cb for each one, holding nothing in memory. *count_out / *errors_out (may be
  * NULL) receive the number of files hashed and the number skipped on error.
  * Returns 0 on success, -1 if a callback aborted the scan. */
 int scan_stream(scan_cb cb, void *ctx, size_t *count_out, size_t *errors_out);
 
+/* As scan_stream, but walks an arbitrary root directory. Relative paths in the
+ * callback are still relative to root (no root prefix). */
+int scan_stream_at(const char *root, scan_cb cb, void *ctx,
+                   size_t *count_out, size_t *errors_out);
+
 /* Recursively scan cwd, hashing every file except DB_FILENAME.
  * Returns allocated scan_t (caller must free with scan_free). */
 scan_t *scan_directory(void);
+
+/* As scan_directory, but walks an arbitrary root directory. */
+scan_t *scan_directory_at(const char *root);
 
 void scan_free(scan_t *s);
 

@@ -45,7 +45,24 @@ void ui_print_menu(void)
     printf(COL_BOLD "  What would you like to do?\n\n" COL_RESET);
     printf("  " COL_CYAN "1" COL_RESET "  →  Create / Rebuild database\n");
     printf("  " COL_CYAN "2" COL_RESET "  →  Verify integrity\n");
-    printf("  " COL_CYAN "3" COL_RESET "  →  Exit\n");
+    printf("  " COL_CYAN "3" COL_RESET "  →  About\n");
+    printf("  " COL_CYAN "4" COL_RESET "  →  Exit\n");
+    printf("\n");
+    printf(COL_DIM "  ─────────────────────────────────────────────────────────────\n" COL_RESET);
+    printf("\n");
+}
+
+void ui_print_about(void)
+{
+    ui_clear_screen();
+    ui_print_banner();
+    printf("\n");
+    printf("  " COL_BOLD "About Syshash\n" COL_RESET);
+    printf("\n");
+    printf("  " COL_DIM "File Integrity Monitor using SHA3-512 hashing.\n" COL_RESET);
+    printf("  " COL_DIM "Version " VERSION "\n" COL_RESET);
+    printf("\n");
+    printf("  " COL_BOLD "Author : " COL_RESET COL_CYAN AUTHOR COL_RESET "\n");
     printf("\n");
     printf(COL_DIM "  ─────────────────────────────────────────────────────────────\n" COL_RESET);
     printf("\n");

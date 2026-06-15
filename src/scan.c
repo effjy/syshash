@@ -136,15 +136,26 @@ static void count_walk(const char *dir_path, size_t *count)
 
 size_t scan_count_files(void)
 {
+    return scan_count_files_at(".");
+}
+
+size_t scan_count_files_at(const char *root)
+{
     size_t count = 0;
-    count_walk(".", &count);
+    count_walk((root && root[0]) ? root : ".", &count);
     return count;
 }
 
 int scan_stream(scan_cb cb, void *ctx, size_t *count_out, size_t *errors_out)
 {
+    return scan_stream_at(".", cb, ctx, count_out, errors_out);
+}
+
+int scan_stream_at(const char *root, scan_cb cb, void *ctx,
+                   size_t *count_out, size_t *errors_out)
+{
     size_t count = 0, errors = 0;
-    int rc = walk("", ".", cb, ctx, &count, &errors);
+    int rc = walk("", (root && root[0]) ? root : ".", cb, ctx, &count, &errors);
     if (count_out)  *count_out  = count;
     if (errors_out) *errors_out = errors;
     return rc;
@@ -178,10 +189,15 @@ static int list_append_cb(const char *rel, const char hex[DB_HEX_LEN + 1], void 
 
 scan_t *scan_directory(void)
 {
+    return scan_directory_at(".");
+}
+
+scan_t *scan_directory_at(const char *root)
+{
     scan_t *s = calloc(1, sizeof(scan_t));
     if (!s) return NULL;
     size_t count = 0, errors = 0;
-    walk("", ".", list_append_cb, s, &count, &errors);
+    walk("", (root && root[0]) ? root : ".", list_append_cb, s, &count, &errors);
     s->errors += errors;   /* walk-level errors (unreadable dirs/files) */
     return s;
 }

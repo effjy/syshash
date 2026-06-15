@@ -394,12 +394,17 @@ int main(void)
             printf("  Press " COL_DIM "[Enter]" COL_RESET " to return to menu… ");
             fflush(stdout);
             wait_enter();
-        } else if (c == '3' || c == 'q' || c == 'Q') {
+        } else if (c == '3') {
+            ui_print_about();
+            printf("  Press " COL_DIM "[Enter]" COL_RESET " to return to menu… ");
+            fflush(stdout);
+            wait_enter();
+        } else if (c == '4' || c == 'q' || c == 'Q') {
             ui_clear_screen();
             printf(COL_DIM "  Goodbye.\n\n" COL_RESET);
             break;
         } else if (c != '\n' && c != '\r') {
-            printf("  " SYM_WARN " Invalid option. Choose 1, 2 or 3.\n\n");
+            printf("  " SYM_WARN " Invalid option. Choose 1, 2, 3 or 4.\n\n");
             fflush(stdout);
             /* brief pause so user can read */
             struct timespec ts = {0, 800000000L};
