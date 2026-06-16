@@ -1,5 +1,3 @@
-<h1 align="center">Syshash</h1>
-
 <p align="center">
  <a href="https://github.com/effjy/syshash/"><img src="titles/syshash-title.svg" height="52" alt="Syshash"></a>
 </p>
