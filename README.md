@@ -152,7 +152,7 @@ directory**.
   ╚════██║  ╚██╔╝  ╚════██║██╔══██║██╔══██║╚════██║██╔══██║
   ███████║   ██║   ███████║██║  ██║██║  ██║███████║██║  ██║
   ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
-  File Integrity Monitor  ·  SHA3-512  ·  v2.0.1
+  File Integrity Monitor  ·  SHA3-512  ·  v3.0.0
 
   ─────────────────────────────────────────────────────────────
 
@@ -311,7 +311,7 @@ directory**.
 The database is stored as `.syshash.db` in the directory where `syshash` is run. It is a plain-text, human-readable file:
 
 ```
-# syshash v2.0.1
+# syshash v3.0.0
 # created: 2026-06-09T05:31:29Z
 # updated: 2026-06-09T05:31:29Z
 #
