@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="screenshot.png" alt="Syshash GTK3 desktop app verifying a directory" width="640">
+  <img src="screenshot.png" alt="Syshash GTK3 desktop app verifying a directory" width="750">
   <br>
   <sub><em>The GTK3 app after verifying <code>/home/user/data</code> — 3041 files unchanged, no tampering detected.</em></sub>
 </p>
